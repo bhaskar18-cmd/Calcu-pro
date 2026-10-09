@@ -1,6 +1,6 @@
 export type Theme = "minimalist" | "neumorphic" | "financial" | "cosmic";
 
-export type ViewMode = "calculator" | "grocery" | "ai";
+export type ViewMode = "calculator" | "grocery";
 
 export type SubCalculatorType =
   | "discount"

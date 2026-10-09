@@ -32,7 +32,6 @@ import FlipClock, { TIME_ZONES, ClockStyle } from "./components/FlipClock";
 import CoreCalculator from "./components/CoreCalculator";
 import SubCalculators from "./components/SubCalculators";
 import GroceryList from "./components/GroceryList";
-import AiAssistant from "./components/AiAssistant";
 import InteractiveCalendar from "./components/InteractiveCalendar";
 
 export default function App() {
@@ -263,10 +262,6 @@ export default function App() {
           {viewMode === "grocery" && (
             <GroceryList theme={theme} />
           )}
-
-          {viewMode === "ai" && (
-            <AiAssistant theme={theme} />
-          )}
         </div>
       </main>
 
@@ -442,18 +437,6 @@ export default function App() {
                         >
                           <ShoppingCart className="w-4 h-4" />
                           <span>Grocery & Checklist Mode</span>
-                        </button>
-                        <button
-                          onClick={() => {
-                            setViewMode("ai");
-                            setIsMenuOpen(false);
-                          }}
-                          className={`w-full flex items-center space-x-2.5 px-3 py-2 rounded-xl text-xs font-semibold cursor-pointer text-left transition-all ${
-                            viewMode === "ai" ? getButtonActiveStyle(true) : getButtonActiveStyle(false)
-                          }`}
-                        >
-                          <Sparkles className="w-4 h-4 text-cyan-400" />
-                          <span>Ai Chat</span>
                         </button>
                         
                         {/* Settings Tab inside Drawer */}
