@@ -12,9 +12,11 @@ import {
   ChevronUp,
   Sparkles,
   Percent,
-  CheckCircle2
+  CheckCircle2,
+  FileSpreadsheet
 } from "lucide-react";
 import { Theme, HistoryItem } from "../types";
+import { exportTextFile, exportCsvFile, buildCsvContent } from "../utils/fileExporter";
 
 interface CoreCalculatorProps {
   theme: Theme;
@@ -511,17 +513,59 @@ export default function CoreCalculator({
     navigator.clipboard.writeText(text);
   };
 
-  const downloadHistory = () => {
-    const content = history
-      .map((item) => `[${item.timestamp}] ${item.equation} = ${item.result}`)
-      .join("\n");
-    const blob = new Blob([content], { type: "text/plain" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `calculator-history-${Date.now()}.txt`;
-    link.click();
-    URL.revokeObjectURL(url);
+  const [exportStatusMessage, setExportStatusMessage] = useState<string | null>(null);
+  const [isExporting, setIsExporting] = useState<boolean>(false);
+
+  const downloadHistory = async () => {
+    if (isExporting) return;
+    try {
+      if (!history || history.length === 0) {
+        setExportStatusMessage("No logs recorded yet to export.");
+        setTimeout(() => setExportStatusMessage(null), 3000);
+        return;
+      }
+      setIsExporting(true);
+      setExportStatusMessage("Preparing Suite Logs (.txt)...");
+      const content = history
+        .map((item) => `[${item.timestamp}] ${item.equation} = ${item.result}`)
+        .join("\n");
+      const filename = `calcu-pro-history-${Date.now()}.txt`;
+      const res = await exportTextFile(filename, content, "Calcu Pro Suite Logs");
+      setExportStatusMessage(res.message);
+      setTimeout(() => setExportStatusMessage(null), 3500);
+    } catch (err: any) {
+      console.error("Export text history error:", err);
+      setExportStatusMessage(`Failed to export logs: ${err?.message || "Error"}`);
+      setTimeout(() => setExportStatusMessage(null), 4000);
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const downloadHistoryCsv = async () => {
+    if (isExporting) return;
+    try {
+      if (!history || history.length === 0) {
+        setExportStatusMessage("No logs recorded yet to export.");
+        setTimeout(() => setExportStatusMessage(null), 3000);
+        return;
+      }
+      setIsExporting(true);
+      setExportStatusMessage("Preparing Suite Logs (.csv)...");
+      const headers = ["Timestamp", "Calculation Equation", "Calculated Result"];
+      const rows = history.map((item) => [item.timestamp, item.equation, item.result]);
+      const csvData = buildCsvContent(headers, rows);
+      const filename = `calcu-pro-history-${Date.now()}.csv`;
+      const res = await exportCsvFile(filename, csvData, "Calcu Pro Suite Logs Spreadsheet");
+      setExportStatusMessage(res.message);
+      setTimeout(() => setExportStatusMessage(null), 3500);
+    } catch (err: any) {
+      console.error("Export CSV history error:", err);
+      setExportStatusMessage(`Failed to export CSV: ${err?.message || "Error"}`);
+      setTimeout(() => setExportStatusMessage(null), 4000);
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   // UI Theme Configs
@@ -1011,19 +1055,30 @@ export default function CoreCalculator({
             <span className="text-xs font-black uppercase tracking-wider">Suite Logs</span>
           </div>
           {history.length > 0 && (
-            <div className="flex space-x-1.5">
+            <div className="flex items-center space-x-1.5">
               <button
                 onClick={downloadHistory}
-                title="Download log history"
-                className="p-1 text-gray-500 hover:text-indigo-600 transition-colors cursor-pointer"
+                disabled={isExporting}
+                title="Download Suite Logs as Text (.txt)"
+                className="p-1 text-gray-500 hover:text-indigo-600 transition-colors cursor-pointer rounded hover:bg-black/5 dark:hover:bg-white/5 disabled:opacity-50"
                 id="btn-download-history"
               >
                 <Download className="w-4 h-4" />
               </button>
               <button
+                onClick={downloadHistoryCsv}
+                disabled={isExporting}
+                title="Export Suite Logs as Spreadsheet (.csv)"
+                className="px-1.5 py-0.5 text-gray-500 hover:text-emerald-500 transition-colors cursor-pointer rounded border border-gray-400/20 text-[10px] font-mono font-bold flex items-center gap-0.5 hover:border-emerald-500/40 disabled:opacity-50"
+                id="btn-download-history-csv"
+              >
+                <FileSpreadsheet className="w-3 h-3 text-emerald-500" />
+                <span>CSV</span>
+              </button>
+              <button
                 onClick={onClearHistory}
                 title="Clear all calculator history logs"
-                className="p-1 text-gray-500 hover:text-red-500 transition-colors cursor-pointer"
+                className="p-1 text-gray-500 hover:text-red-500 transition-colors cursor-pointer rounded hover:bg-black/5 dark:hover:bg-white/5"
                 id="btn-clear-history"
               >
                 <Trash2 className="w-4 h-4" />
@@ -1031,6 +1086,18 @@ export default function CoreCalculator({
             </div>
           )}
         </div>
+
+        {exportStatusMessage && (
+          <div className="mb-2 px-2.5 py-1.5 rounded-xl bg-indigo-500/10 border border-indigo-500/25 text-indigo-400 dark:text-cyan-400 text-[11px] font-medium flex items-center justify-between gap-1 animate-in fade-in">
+            <span className="truncate">{exportStatusMessage}</span>
+            <button
+              onClick={() => setExportStatusMessage(null)}
+              className="text-xs opacity-60 hover:opacity-100 ml-1 cursor-pointer font-bold shrink-0"
+            >
+              ✕
+            </button>
+          </div>
+        )}
 
         <div className={`flex-1 rounded-2xl overflow-y-auto max-h-[480px] p-4 bg-black/15 dark:bg-black/40 border border-black/5 dark:border-white/5`}>
           {history.length === 0 ? (

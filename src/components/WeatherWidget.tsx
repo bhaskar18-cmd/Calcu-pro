@@ -15,7 +15,8 @@ import {
   MapPin, 
   RefreshCw,
   Navigation,
-  ChevronDown
+  ChevronDown,
+  X,
 } from "lucide-react";
 import { Theme } from "../types";
 
@@ -244,7 +245,7 @@ export default function WeatherWidget({ theme }: WeatherWidgetProps) {
           accentText: "text-cyan-400",
           dropdown: "backdrop-blur-xl bg-slate-950/95 border border-white/10 text-white",
           dropdownItemHover: "hover:bg-cyan-500/10 hover:text-cyan-200 text-slate-300",
-          input: "bg-[#05050a]/40 border border-white/10 text-white placeholder-slate-500 rounded-xl px-3 py-1.5 focus:border-cyan-400",
+          input: "bg-slate-900/90 border border-white/20 text-white placeholder-slate-400 rounded-xl px-3 py-1.5 focus:border-cyan-400 focus:outline-none focus:ring-1 focus:ring-cyan-400 font-medium",
           forecastCard: "backdrop-blur-sm bg-white/5 border border-white/5 p-2.5 rounded-[20px] flex flex-col items-center shadow-inner",
         };
       case "minimalist":
@@ -300,16 +301,28 @@ export default function WeatherWidget({ theme }: WeatherWidgetProps) {
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Search city..."
-                  className={`w-full text-xs pr-7 ${s.input}`}
+                  className={`w-full text-xs pr-12 font-medium ${s.input}`}
                   id="weather-city-input"
                 />
-                <button
-                  type="submit"
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
-                  title="Search location"
-                >
-                  <Search className="w-3.5 h-3.5" />
-                </button>
+                <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                  {searchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => setSearchQuery("")}
+                      className="p-0.5 rounded-full text-slate-400 hover:text-white transition-colors cursor-pointer"
+                      title="Clear search"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  )}
+                  <button
+                    type="submit"
+                    className="text-slate-400 hover:text-white transition-colors cursor-pointer"
+                    title="Search location"
+                  >
+                    <Search className="w-3.5 h-3.5" />
+                  </button>
+                </div>
               </div>
 
               <button

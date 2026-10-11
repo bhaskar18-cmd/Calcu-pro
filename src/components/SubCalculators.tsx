@@ -11,13 +11,18 @@ import {
   Lightbulb,
   Copy,
   TrendingUp,
+  Download,
+  FileSpreadsheet,
 } from "lucide-react";
 import { Theme, SubCalculatorType, ScientificConstant, EmiScheduleItem } from "../types";
 import { BirthdayCard } from "./BirthdayCard";
+import { CountryConfig, getStoredCountry } from "../utils/countryConfig";
+import { exportCsvFile, buildCsvContent } from "../utils/fileExporter";
 
 interface SubCalculatorsProps {
   theme: Theme;
   activeSub: SubCalculatorType;
+  country?: CountryConfig;
 }
 
 const SCIENTIFIC_CONSTANTS: ScientificConstant[] = [
@@ -38,7 +43,9 @@ const SCIENTIFIC_CONSTANTS: ScientificConstant[] = [
   { name: "Solar Mass (M_☉)", symbol: "M_☉", value: "1.98847e30", unit: "kg", category: "Astronomical" },
 ];
 
-export default function SubCalculators({ theme, activeSub }: SubCalculatorsProps) {
+export default function SubCalculators({ theme, activeSub, country }: SubCalculatorsProps) {
+  const activeCountry = country || getStoredCountry();
+  const sym = activeCountry.currencySymbol;
   const [copiedText, setCopiedText] = useState<string | null>(null);
 
   const triggerCopyNotification = (val: string) => {
@@ -339,6 +346,80 @@ export default function SubCalculators({ theme, activeSub }: SubCalculatorsProps
     }
   }
 
+  const [emiExportMessage, setEmiExportMessage] = useState<string | null>(null);
+  const [splitExportMessage, setSplitExportMessage] = useState<string | null>(null);
+  const [isExporting, setIsExporting] = useState<boolean>(false);
+
+  const handleExportSplitCsv = async () => {
+    if (isExporting) return;
+    try {
+      if (bTotal <= 0) {
+        setSplitExportMessage("Please enter a bill amount greater than 0 first.");
+        setTimeout(() => setSplitExportMessage(null), 3000);
+        return;
+      }
+      setIsExporting(true);
+      setSplitExportMessage("Generating Split Bill Summary (.csv)...");
+      const headers = ["Description", `Amount (${sym})`];
+      const rows = [
+        ["Subtotal", bTotal.toFixed(2)],
+        [`Tip (${billTip}%)`, tipAmount.toFixed(2)],
+        ["Grand Total", totalWithTip.toFixed(2)],
+        ["Number of People", String(bPeople)],
+        ["Per Person Share", splitAmount.toFixed(2)],
+      ];
+      const csvData = buildCsvContent(headers, rows);
+      const filename = `split-bill-summary-${Date.now()}.csv`;
+      const res = await exportCsvFile(filename, csvData, "Split Bill Summary");
+      setSplitExportMessage(res.message);
+      setTimeout(() => setSplitExportMessage(null), 3500);
+    } catch (err: any) {
+      console.error("Split bill export error:", err);
+      setSplitExportMessage(`Failed to export summary: ${err?.message || "Error"}`);
+      setTimeout(() => setSplitExportMessage(null), 4000);
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handleExportEmiCsv = async () => {
+    if (isExporting) return;
+    try {
+      if (!emiSchedule || emiSchedule.length === 0) {
+        setEmiExportMessage("No amortization data to export. Enter loan details first.");
+        setTimeout(() => setEmiExportMessage(null), 3000);
+        return;
+      }
+      setIsExporting(true);
+      setEmiExportMessage("Generating Amortization Schedule (.csv)...");
+      const headers = [
+        "Month",
+        `EMI Payment (${sym})`,
+        `Principal Paid (${sym})`,
+        `Interest Paid (${sym})`,
+        `Remaining Balance (${sym})`,
+      ];
+      const rows = emiSchedule.map((row) => [
+        row.month,
+        row.payment.toFixed(2),
+        row.principal.toFixed(2),
+        row.interest.toFixed(2),
+        row.balance.toFixed(2),
+      ]);
+      const csvData = buildCsvContent(headers, rows);
+      const filename = `loan-emi-amortization-${Date.now()}.csv`;
+      const res = await exportCsvFile(filename, csvData, "Loan EMI Amortization Schedule");
+      setEmiExportMessage(res.message);
+      setTimeout(() => setEmiExportMessage(null), 3500);
+    } catch (err: any) {
+      console.error("EMI CSV export error:", err);
+      setEmiExportMessage(`Failed to export schedule: ${err?.message || "Error"}`);
+      setTimeout(() => setEmiExportMessage(null), 4000);
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   // 7. BMI
   const wBMI = parseFloat(bmiWeight) || 0;
   const hBMI = parseFloat(bmiHeight) || 0;
@@ -394,7 +475,7 @@ export default function SubCalculators({ theme, activeSub }: SubCalculatorsProps
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-5">
             <div>
-              <label className={s.label}>Original Price ($)</label>
+              <label className={s.label}>Original Price ({sym})</label>
               <input
                 type="number"
                 value={discountPrice}
@@ -429,19 +510,19 @@ export default function SubCalculators({ theme, activeSub }: SubCalculatorsProps
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div>
                 <span className="text-xs opacity-60">Base Price</span>
-                <p className="text-lg font-mono font-bold">${origPrice.toFixed(2)}</p>
+                <p className="text-lg font-mono font-bold">{sym}{origPrice.toFixed(2)}</p>
               </div>
               <div>
                 <span className="text-xs opacity-60">Total Savings</span>
-                <p className="text-lg font-mono font-bold text-green-500">-${savings.toFixed(2)}</p>
+                <p className="text-lg font-mono font-bold text-green-500">-{sym}{savings.toFixed(2)}</p>
               </div>
               <div>
                 <span className="text-xs opacity-60">Sales Tax</span>
-                <p className="text-lg font-mono font-bold">${taxAmount.toFixed(2)}</p>
+                <p className="text-lg font-mono font-bold">{sym}{taxAmount.toFixed(2)}</p>
               </div>
               <div>
                 <span className="text-xs opacity-60">Final Price</span>
-                <p className={`text-xl font-mono font-extrabold ${s.accentText}`}>${finalPrice.toFixed(2)}</p>
+                <p className={`text-xl font-mono font-extrabold ${s.accentText}`}>{sym}{finalPrice.toFixed(2)}</p>
               </div>
             </div>
           </div>
@@ -457,7 +538,7 @@ export default function SubCalculators({ theme, activeSub }: SubCalculatorsProps
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-5">
             <div>
-              <label className={s.label}>Transaction Value ($)</label>
+              <label className={s.label}>Transaction Value ({sym})</label>
               <input
                 type="number"
                 value={gstAmount}
@@ -526,21 +607,21 @@ export default function SubCalculators({ theme, activeSub }: SubCalculatorsProps
               <div>
                 <span className="text-xs opacity-60">Net Amount</span>
                 <p className="text-lg font-mono font-bold">
-                  ${(gstType === "exclusive" ? amt : amt - gstCalculated).toFixed(2)}
+                  {sym}{(gstType === "exclusive" ? amt : amt - gstCalculated).toFixed(2)}
                 </p>
               </div>
               <div>
                 <span className="text-xs opacity-60">CGST (50%)</span>
-                <p className="text-lg font-mono font-bold">${cgstVal.toFixed(2)}</p>
+                <p className="text-lg font-mono font-bold">{sym}{cgstVal.toFixed(2)}</p>
               </div>
               <div>
                 <span className="text-xs opacity-60">SGST (50%)</span>
-                <p className="text-lg font-mono font-bold">${sgstVal.toFixed(2)}</p>
+                <p className="text-lg font-mono font-bold">{sym}{sgstVal.toFixed(2)}</p>
               </div>
               <div>
                 <span className="text-xs opacity-60">Total Bill Value</span>
                 <p className={`text-xl font-mono font-extrabold ${s.accentText}`}>
-                  ${(gstType === "exclusive" ? netVal : amt).toFixed(2)}
+                  {sym}{(gstType === "exclusive" ? netVal : amt).toFixed(2)}
                 </p>
               </div>
             </div>
@@ -557,7 +638,7 @@ export default function SubCalculators({ theme, activeSub }: SubCalculatorsProps
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-5">
             <div>
-              <label className={s.label}>Total Bill Amount ($)</label>
+              <label className={s.label}>Total Bill Amount ({sym})</label>
               <input
                 type="number"
                 value={billTotal}
@@ -593,23 +674,50 @@ export default function SubCalculators({ theme, activeSub }: SubCalculatorsProps
             </div>
           </div>
           <div className={s.resultBlock}>
-            <h4 className="text-sm font-semibold uppercase tracking-wider mb-3 opacity-70">Payout Breakdown</h4>
+            <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+              <h4 className="text-sm font-semibold uppercase tracking-wider opacity-70">Payout Breakdown</h4>
+              <button
+                type="button"
+                onClick={handleExportSplitCsv}
+                disabled={isExporting}
+                className="px-2.5 py-1 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400 border border-emerald-500/30 text-[11px] font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-sm active:scale-95 disabled:opacity-50"
+                title="Download Split Bill Breakdown as CSV Spreadsheet"
+                id="btn-export-split-csv"
+              >
+                <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Export CSV</span>
+              </button>
+            </div>
+
+            {splitExportMessage && (
+              <div className="mb-3 px-2.5 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[11px] font-medium flex items-center justify-between animate-in fade-in">
+                <span>{splitExportMessage}</span>
+                <button
+                  type="button"
+                  onClick={() => setSplitExportMessage(null)}
+                  className="text-xs opacity-60 hover:opacity-100 font-bold ml-1 cursor-pointer"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
+
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div>
                 <span className="text-xs opacity-60">Subtotal</span>
-                <p className="text-lg font-mono font-bold">${bTotal.toFixed(2)}</p>
+                <p className="text-lg font-mono font-bold">{sym}{bTotal.toFixed(2)}</p>
               </div>
               <div>
                 <span className="text-xs opacity-60">Tip Amount</span>
-                <p className="text-lg font-mono font-bold text-indigo-500">${tipAmount.toFixed(2)}</p>
+                <p className="text-lg font-mono font-bold text-indigo-500">{sym}{tipAmount.toFixed(2)}</p>
               </div>
               <div>
                 <span className="text-xs opacity-60">Grand Total</span>
-                <p className="text-lg font-mono font-bold">${totalWithTip.toFixed(2)}</p>
+                <p className="text-lg font-mono font-bold">{sym}{totalWithTip.toFixed(2)}</p>
               </div>
               <div>
                 <span className="text-xs opacity-60">Per Person Pays</span>
-                <p className={`text-xl font-mono font-extrabold ${s.accentText}`}>${splitAmount.toFixed(2)}</p>
+                <p className={`text-xl font-mono font-extrabold ${s.accentText}`}>{sym}{splitAmount.toFixed(2)}</p>
               </div>
             </div>
           </div>
@@ -771,7 +879,7 @@ export default function SubCalculators({ theme, activeSub }: SubCalculatorsProps
           </div>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-5">
             <div>
-              <label className={s.label}>Loan Amount ($)</label>
+              <label className={s.label}>Loan Amount ({sym})</label>
               <input
                 type="number"
                 value={loanPrincipal}
@@ -820,15 +928,15 @@ export default function SubCalculators({ theme, activeSub }: SubCalculatorsProps
               <div className="space-y-2.5">
                 <div className="flex justify-between border-b border-black/5 pb-1">
                   <span className="text-xs opacity-70">Monthly Payment (EMI)</span>
-                  <span className={`font-mono font-bold ${s.accentText}`}>${emiMonthly.toFixed(2)}</span>
+                  <span className={`font-mono font-bold ${s.accentText}`}>{sym}{emiMonthly.toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between border-b border-black/5 pb-1">
                   <span className="text-xs opacity-70">Total Interest</span>
-                  <span className="font-mono font-bold text-red-500">${totalInterest.toFixed(2)}</span>
+                  <span className="font-mono font-bold text-red-500">{sym}{totalInterest.toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-xs opacity-70">Total Repayment</span>
-                  <span className="font-mono font-bold">${(principal + totalInterest).toFixed(2)}</span>
+                  <span className="font-mono font-bold">{sym}{(principal + totalInterest).toFixed(2)}</span>
                 </div>
               </div>
             </div>
@@ -861,13 +969,38 @@ export default function SubCalculators({ theme, activeSub }: SubCalculatorsProps
           {/* EMI Schedule */}
           {emiSchedule.length > 0 && (
             <div>
-              <h4 className="text-xs uppercase tracking-wider mb-2 font-bold opacity-80">
-                Amortization Preview (First 12 Months)
-              </h4>
-              <div className="max-h-48 overflow-y-auto border border-black/5 rounded-xl font-mono text-xs">
+              <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
+                <h4 className="text-xs uppercase tracking-wider font-bold opacity-80">
+                  Amortization Preview (First 12 Months)
+                </h4>
+                <button
+                  onClick={handleExportEmiCsv}
+                  disabled={isExporting}
+                  className="px-2.5 py-1 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400 border border-emerald-500/30 text-[11px] font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-sm active:scale-95 disabled:opacity-50"
+                  title="Download Loan Amortization Schedule as CSV Spreadsheet"
+                  id="btn-export-emi-csv"
+                >
+                  <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Export CSV</span>
+                </button>
+              </div>
+
+              {emiExportMessage && (
+                <div className="mb-2 px-2.5 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[11px] font-medium flex items-center justify-between animate-in fade-in">
+                  <span>{emiExportMessage}</span>
+                  <button
+                    onClick={() => setEmiExportMessage(null)}
+                    className="text-xs opacity-60 hover:opacity-100 font-bold ml-1 cursor-pointer"
+                  >
+                    ✕
+                  </button>
+                </div>
+              )}
+
+              <div className="max-h-48 overflow-y-auto border border-black/5 dark:border-white/10 rounded-xl font-mono text-xs">
                 <table className="w-full text-left border-collapse">
                   <thead>
-                    <tr className="bg-black/5 sticky top-0">
+                    <tr className="bg-black/5 dark:bg-white/5 sticky top-0">
                       <th className="p-2">Month</th>
                       <th className="p-2">EMI</th>
                       <th className="p-2">Principal Paid</th>
@@ -877,12 +1010,12 @@ export default function SubCalculators({ theme, activeSub }: SubCalculatorsProps
                   </thead>
                   <tbody>
                     {emiSchedule.map((row) => (
-                      <tr key={row.month} className="border-b border-black/5 hover:bg-black/5">
+                      <tr key={row.month} className="border-b border-black/5 dark:border-white/5 hover:bg-black/5 dark:hover:bg-white/5">
                         <td className="p-2">{row.month}</td>
-                        <td className="p-2">${row.payment.toFixed(2)}</td>
-                        <td className="p-2 text-green-600">${row.principal.toFixed(2)}</td>
-                        <td className="p-2 text-red-500">${row.interest.toFixed(2)}</td>
-                        <td className="p-2">${row.balance.toFixed(2)}</td>
+                        <td className="p-2">{sym}{row.payment.toFixed(2)}</td>
+                        <td className="p-2 text-green-600 dark:text-green-400">{sym}{row.principal.toFixed(2)}</td>
+                        <td className="p-2 text-red-500 dark:text-red-400">{sym}{row.interest.toFixed(2)}</td>
+                        <td className="p-2">{sym}{row.balance.toFixed(2)}</td>
                       </tr>
                     ))}
                   </tbody>

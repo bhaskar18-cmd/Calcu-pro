@@ -1,6 +1,11 @@
 import React, { useState, useEffect } from "react";
-import { ChevronLeft, ChevronRight, Plus, Trash2, Calendar as CalendarIcon, Clock, Tag, Sparkles } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Trash2, Calendar as CalendarIcon, Clock, Tag, Sparkles, Bell, FileSpreadsheet } from "lucide-react";
 import { Theme } from "../types";
+import {
+  scheduleCalendarEventNotification,
+  cancelCalendarEventNotification,
+} from "../utils/notificationManager";
+import { exportCsvFile, buildCsvContent } from "../utils/fileExporter";
 
 interface CalendarEvent {
   id: string;
@@ -12,9 +17,15 @@ interface CalendarEvent {
 
 interface InteractiveCalendarProps {
   theme: Theme;
+  isFullScreenMode?: boolean;
+  onOpenNotificationSettings?: () => void;
 }
 
-export default function InteractiveCalendar({ theme }: InteractiveCalendarProps) {
+export default function InteractiveCalendar({
+  theme,
+  isFullScreenMode = false,
+  onOpenNotificationSettings,
+}: InteractiveCalendarProps) {
   const [currentDate, setCurrentDate] = useState<Date>(new Date());
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [events, setEvents] = useState<CalendarEvent[]>(() => {
@@ -84,7 +95,41 @@ export default function InteractiveCalendar({ theme }: InteractiveCalendarProps)
     return parseInt(y) === year && parseInt(m) === (month + 1);
   }).length;
 
-  const handleAddEvent = (e: React.FormEvent) => {
+  const [calExportMessage, setCalExportMessage] = useState<string | null>(null);
+  const [isExporting, setIsExporting] = useState<boolean>(false);
+
+  const handleExportEventsCsv = async () => {
+    if (isExporting) return;
+    try {
+      if (!events || events.length === 0) {
+        setCalExportMessage("No events or reminders to export. Add some first!");
+        setTimeout(() => setCalExportMessage(null), 3000);
+        return;
+      }
+      setIsExporting(true);
+      setCalExportMessage("Generating Calendar Schedule (.csv)...");
+      const headers = ["Date", "Time", "Category", "Event / Reminder Text"];
+      const rows = events.map((ev) => [
+        ev.dateStr,
+        ev.time || "All Day",
+        ev.category || "personal",
+        ev.text,
+      ]);
+      const csvData = buildCsvContent(headers, rows);
+      const filename = `calcu-pro-calendar-schedule-${Date.now()}.csv`;
+      const res = await exportCsvFile(filename, csvData, "Calcu Pro Calendar Schedule");
+      setCalExportMessage(res.message);
+      setTimeout(() => setCalExportMessage(null), 3500);
+    } catch (err: any) {
+      console.error("Calendar CSV export error:", err);
+      setCalExportMessage(`Failed to export calendar: ${err?.message || "Error"}`);
+      setTimeout(() => setCalExportMessage(null), 4000);
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handleAddEvent = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newEventText.trim()) return;
 
@@ -97,14 +142,20 @@ export default function InteractiveCalendar({ theme }: InteractiveCalendarProps)
     };
 
     setEvents((prev) => [...prev, newEv]);
+
+    // Automatically schedule local notification for the reminder
+    await scheduleCalendarEventNotification(newEv);
+
     setNewEventText("");
     setNewEventTime("");
     setNewEventCategory("personal");
     setShowEventForm(false);
   };
 
-  const handleDeleteEvent = (id: string) => {
+  const handleDeleteEvent = async (id: string) => {
     setEvents((prev) => prev.filter((e) => e.id !== id));
+    // Cancel the scheduled notification for this event
+    await cancelCalendarEventNotification(id);
   };
 
   // Helper to check if a day has any events
@@ -268,19 +319,42 @@ export default function InteractiveCalendar({ theme }: InteractiveCalendarProps)
   }
 
   return (
-    <div className={s.container} id="chrono-interactive-calendar-widget">
+    <div
+      className={`${s.container} ${isFullScreenMode ? "max-w-4xl mx-auto shadow-2xl p-5 md:p-7" : ""}`}
+      id="chrono-interactive-calendar-widget"
+    >
       {/* Calendar Header with navigation */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex flex-col">
           <span className="text-[10px] uppercase font-black opacity-60 tracking-widest flex items-center gap-1">
             <Sparkles className="w-3 h-3 text-indigo-400 animate-pulse" />
-            Calendar & Notes
+            Calendar & Scheduled Reminders
           </span>
-          <span className="text-sm font-black tracking-tight mt-0.5">
+          <span className="text-sm md:text-base font-black tracking-tight mt-0.5">
             {months[month]} {year}
           </span>
         </div>
-        <div className="flex items-center space-x-1">
+        <div className="flex items-center space-x-1.5 flex-wrap gap-1">
+          <button
+            onClick={handleExportEventsCsv}
+            disabled={isExporting}
+            className="px-2 py-1.5 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-400 text-[10px] font-bold flex items-center gap-1 cursor-pointer transition-all shadow-sm active:scale-95 disabled:opacity-50"
+            title="Download Calendar Events as CSV Spreadsheet"
+            id="btn-export-calendar-csv"
+          >
+            <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-400" />
+            <span className="hidden sm:inline">Export CSV</span>
+          </button>
+          {onOpenNotificationSettings && (
+            <button
+              onClick={onOpenNotificationSettings}
+              className="px-2.5 py-1.5 rounded-xl bg-indigo-500/15 hover:bg-indigo-500/25 border border-indigo-500/30 text-indigo-300 text-[10px] font-bold flex items-center gap-1 cursor-pointer transition-all"
+              title="Open Reminders & Sound Settings"
+            >
+              <Bell className="w-3.5 h-3.5 text-indigo-400 animate-pulse" />
+              <span className="hidden sm:inline">Reminders Hub</span>
+            </button>
+          )}
           <button onClick={handleToday} className={s.todayBtn} title="Jump to today">
             Today
           </button>
@@ -293,13 +367,26 @@ export default function InteractiveCalendar({ theme }: InteractiveCalendarProps)
         </div>
       </div>
 
-      {/* Tiny statistical indicator */}
-      {currentMonthEventsCount > 0 && (
-        <div className="mb-3 px-2.5 py-1 rounded-lg bg-indigo-500/10 text-indigo-400 dark:text-cyan-400 border border-indigo-500/10 text-[10px] font-bold flex items-center justify-between animate-fadeIn">
-          <span>📅 Schedule Overview</span>
-          <span>{currentMonthEventsCount} item{currentMonthEventsCount > 1 ? "s" : ""} booked this month</span>
+      {calExportMessage && (
+        <div className="mb-2 px-3 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-medium flex items-center justify-between animate-in fade-in">
+          <span>{calExportMessage}</span>
+          <button
+            onClick={() => setCalExportMessage(null)}
+            className="text-xs opacity-60 hover:opacity-100 font-bold ml-2 cursor-pointer"
+          >
+            ✕
+          </button>
         </div>
       )}
+
+      {/* Tiny statistical indicator */}
+      <div className="mb-3 px-3 py-1.5 rounded-xl bg-indigo-500/10 text-indigo-400 dark:text-cyan-400 border border-indigo-500/10 text-[11px] font-bold flex items-center justify-between animate-fadeIn">
+        <span className="flex items-center gap-1.5">
+          <Bell className="w-3.5 h-3.5" />
+          <span>Scheduled Push Alerts: {events.length} Active</span>
+        </span>
+        <span>{currentMonthEventsCount} this month</span>
+      </div>
 
       {/* Weekdays Row */}
       <div className="grid grid-cols-7 gap-1 text-center mb-2">
@@ -431,6 +518,11 @@ export default function InteractiveCalendar({ theme }: InteractiveCalendarProps)
               </div>
             </div>
 
+            <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-indigo-500/10 text-indigo-400 dark:text-cyan-400 text-[9px] font-semibold">
+              <Bell className="w-3 h-3 shrink-0" />
+              <span>Push reminder with audio chime scheduled automatically</span>
+            </div>
+
             <div className="flex items-center justify-end gap-1.5 pt-1 border-t border-black/5 dark:border-white/5">
               <button
                 type="button"
@@ -475,6 +567,10 @@ export default function InteractiveCalendar({ theme }: InteractiveCalendarProps)
                           {ev.time}
                         </span>
                       )}
+                      <span className="inline-flex items-center gap-0.5 text-[8px] text-indigo-400 dark:text-cyan-300 font-bold" title="Push notification alert scheduled">
+                        <Bell className="w-2.5 h-2.5" />
+                        <span>Alert</span>
+                      </span>
                     </div>
                   </div>
                   <button

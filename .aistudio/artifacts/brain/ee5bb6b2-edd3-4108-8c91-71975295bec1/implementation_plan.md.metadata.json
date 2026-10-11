@@ -1,0 +1,6 @@
+{
+  "summary":  "Comprehensive implementation plan for Capacitor 7 Local Notifications in Calcu Pro app.\nDetails installation of @capacitor/local-notifications and @capacitor/core, dual native & web notification manager with stable notification IDs, dedicated Notifications & Reminders UI in Drawer Settings and Interactive Calendar, custom audio ringtone playback, browser fallback detection, and phone-friendly GitHub Actions APK deployment guide.",
+  "updatedAt":  "2026-10-10T18:16:46.553827321Z",
+  "requestFeedback":  true,
+  "userFacing":  true
+}

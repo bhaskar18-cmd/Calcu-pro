@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { Clock, Globe, ChevronDown, Sliders, Settings, Check, X } from "lucide-react";
-import { Theme, TimeZoneOption } from "../types";
+import { Clock, Globe, ChevronDown, Sliders, Settings, Check, X, ArrowDownToLine, ArrowUpToLine, Shield } from "lucide-react";
+import { Theme, TimeZoneOption, ClockPlacement } from "../types";
 
 export type ClockStyle = "3d-flip" | "holographic" | "cyber-led";
 
@@ -21,6 +21,9 @@ interface FlipClockProps {
   clockStyle: ClockStyle;
   activeZone: TimeZoneOption;
   isHeader?: boolean;
+  clockPlacement?: ClockPlacement;
+  onTogglePlacement?: () => void;
+  onOpenSettings?: () => void;
 }
 
 // 3D Split-Flap Digit component with perspective rotation
@@ -272,7 +275,7 @@ function HolographicClockFace({ hours, minutes, seconds, hNum, mNum, sNum, ampm,
           <span className="animate-pulse mx-0.5 opacity-30 text-slate-400">:</span>
           <span className="text-xs text-slate-500 font-semibold">{seconds}</span>
         </div>
-        <span className="text-[7px] text-slate-400 uppercase tracking-widest font-extrabold mt-0.5 leading-none">Holo Orb</span>
+        <span className="text-[7px] text-slate-400 uppercase tracking-widest font-extrabold mt-0.5 leading-none">Chrono Dial</span>
       </div>
     </div>
   );
@@ -296,15 +299,6 @@ function CyberLedClockFace({ hours, minutes, seconds, ampm, theme }: { hours: st
 
   return (
     <div className={`relative overflow-hidden flex items-center space-x-2 px-3 py-1.5 rounded-xl border ${getPanelColors()} shadow-inner`}>
-      {/* Segment background simulation behind content */}
-      <div className="absolute inset-0 px-3 py-1.5 flex items-center select-none pointer-events-none opacity-5 font-mono text-lg font-black tracking-wide">
-        <span>88</span>
-        <span className="mx-0.5">:</span>
-        <span>88</span>
-        <span className="mx-0.5">:</span>
-        <span>88</span>
-      </div>
-
       <div className="relative z-10 flex items-baseline space-x-0.5">
         <span className="text-lg font-black font-mono tracking-wide">{hours}</span>
         <span className="text-base font-mono opacity-50 animate-pulse">:</span>
@@ -320,7 +314,15 @@ function CyberLedClockFace({ hours, minutes, seconds, ampm, theme }: { hours: st
   );
 }
 
-export default function FlipClock({ theme, clockStyle, activeZone, isHeader }: FlipClockProps) {
+export default function FlipClock({
+  theme,
+  clockStyle,
+  activeZone,
+  isHeader,
+  clockPlacement,
+  onTogglePlacement,
+  onOpenSettings,
+}: FlipClockProps) {
   const [currentTime, setCurrentTime] = useState(new Date());
 
   useEffect(() => {
@@ -398,9 +400,9 @@ export default function FlipClock({ theme, clockStyle, activeZone, isHeader }: F
   if (isHeader) {
     return (
       <div className="relative flex items-center justify-center" id="nexus-world-clock-header">
-        <div className="flex flex-row items-center gap-3.5 flex-nowrap">
+        <div className="flex flex-row items-center gap-1.5 sm:gap-2.5 flex-nowrap">
           {/* Left Side: Timezone Label */}
-          <div className="hidden sm:flex items-center space-x-1.5 min-w-0">
+          <div className="hidden md:flex items-center space-x-1.5 min-w-0">
             <div className="p-1 rounded-lg bg-black/10 dark:bg-white/5 flex items-center justify-center shrink-0">
               <Clock className={`w-3 h-3 ${s.accentText}`} />
             </div>
@@ -426,33 +428,59 @@ export default function FlipClock({ theme, clockStyle, activeZone, isHeader }: F
               <CyberLedClockFace hours={hours} minutes={minutes} seconds={seconds} ampm={ampm} theme={theme} />
             )}
           </div>
+
+          {/* Quick Reposition: Move below header to avoid Dynamic Island */}
+          {onTogglePlacement && (
+            <button
+              onClick={onTogglePlacement}
+              className="p-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 text-gray-400 hover:text-indigo-400 transition-colors shrink-0 cursor-pointer"
+              title="Move Clock Below Header (Dynamic Island Safe)"
+              id="btn-clock-move-below"
+            >
+              <ArrowDownToLine className="w-3.5 h-3.5" />
+            </button>
+          )}
         </div>
       </div>
     );
   }
 
   return (
-    <div className={`${s.card} relative min-h-[58px] flex items-center justify-center`} id="nexus-world-clock-container">
-      <div className="w-full flex flex-row items-center justify-between gap-2.5 sm:gap-4 flex-nowrap">
+    <div className={`${s.card} relative min-h-[56px] flex flex-col justify-center transition-all`} id="nexus-world-clock-container">
+      <div className="w-full flex flex-row items-center justify-between gap-1 sm:gap-4 flex-nowrap">
         
-        {/* Left Side: Timezone Label */}
-        <div className="flex items-center space-x-1.5 min-w-0">
-          <div className="p-1.5 rounded-lg bg-black/10 dark:bg-white/5 flex items-center justify-center shrink-0">
-            <Clock className={`w-3.5 h-3.5 ${s.accentText}`} />
-          </div>
-          <div className="flex flex-col min-w-0">
-            <span className="text-[7.5px] uppercase tracking-widest font-extrabold text-slate-500 leading-none mb-1 flex items-center gap-0.5 truncate">
-              <Globe className="w-2.5 h-2.5 opacity-60 shrink-0" />
-              {activeZone.city === "Local Time" ? "Local" : activeZone.city}
-            </span>
-            <span className="text-[10px] font-black text-slate-400 dark:text-slate-300 truncate leading-none">
-              {activeZone.country ? activeZone.country : "Device"}
-            </span>
+        {/* Left Side: On mobile, show Dock Top button; on tablet/desktop, show full timezone label */}
+        <div className="flex items-center min-w-0">
+          {/* Mobile Dock Top Button */}
+          {onTogglePlacement && (
+            <button
+              onClick={onTogglePlacement}
+              className="md:hidden p-1.5 rounded-lg bg-black/5 dark:bg-white/10 hover:bg-black/10 text-gray-400 hover:text-indigo-400 transition-colors shrink-0 cursor-pointer"
+              title="Dock Clock into Top Header"
+              id="btn-clock-dock-top-mobile"
+            >
+              <ArrowUpToLine className="w-3.5 h-3.5 text-indigo-400" />
+            </button>
+          )}
+
+          {/* Desktop/Tablet Timezone Label */}
+          <div className="hidden md:flex items-center space-x-1.5 min-w-0 overflow-hidden">
+            <div className="p-1.5 rounded-lg bg-black/10 dark:bg-white/5 flex items-center justify-center shrink-0">
+              <Clock className={`w-3.5 h-3.5 ${s.accentText}`} />
+            </div>
+            <div className="flex flex-col min-w-0">
+              <span className="text-[7.5px] uppercase tracking-widest font-extrabold text-slate-500 leading-none mb-0.5 flex items-center gap-0.5 truncate">
+                {activeZone.city === "Local Time" ? "Local" : activeZone.city}
+              </span>
+              <span className="text-[10px] font-black text-slate-400 dark:text-slate-300 truncate leading-none">
+                {activeZone.country ? activeZone.country : "Device Time"}
+              </span>
+            </div>
           </div>
         </div>
 
         {/* Center: Main Unified Clock Face */}
-        <div className="flex items-center justify-center py-0.5 shrink-0 relative z-10">
+        <div className="flex flex-col items-center justify-center py-0.5 shrink-0 relative z-10">
           {clockStyle === "3d-flip" && (
             <SplitFlapClockFace hours={hours} minutes={minutes} seconds={seconds} ampm={ampm} theme={theme} />
           )}
@@ -462,10 +490,39 @@ export default function FlipClock({ theme, clockStyle, activeZone, isHeader }: F
           {clockStyle === "cyber-led" && (
             <CyberLedClockFace hours={hours} minutes={minutes} seconds={seconds} ampm={ampm} theme={theme} />
           )}
+
+          {/* Mobile Clean Sub-Label (placed below clock face with zero collision) */}
+          <div className="flex md:hidden items-center justify-center gap-1 mt-0.5">
+            <span className="text-[8.5px] font-bold text-slate-400 dark:text-slate-500 tracking-wider uppercase font-mono">
+              {activeZone.city === "Local Time" ? "Local Device Time" : `${activeZone.city} · ${activeZone.country || ""}`}
+            </span>
+          </div>
         </div>
 
-        {/* Dummy right spacer to balance left timezone column visually */}
-        <div className="w-[85px] sm:w-[110px] hidden xs:block shrink-0" />
+        {/* Right Side: Quick Placement & Settings Controls */}
+        <div className="flex items-center space-x-1 shrink-0">
+          {onTogglePlacement && (
+            <button
+              onClick={onTogglePlacement}
+              className="hidden md:flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded-lg bg-black/5 dark:bg-white/10 hover:bg-black/10 text-gray-500 dark:text-gray-300 transition-colors cursor-pointer"
+              title="Dock Clock into Top Header"
+              id="btn-clock-dock-top"
+            >
+              <ArrowUpToLine className="w-3 h-3 text-indigo-400" />
+              <span className="hidden xs:inline">Dock Top</span>
+            </button>
+          )}
+          {onOpenSettings && (
+            <button
+              onClick={onOpenSettings}
+              className="p-1.5 rounded-lg bg-black/5 dark:bg-white/10 hover:bg-black/10 text-gray-400 hover:text-gray-200 transition-colors cursor-pointer"
+              title="Chrono Clock & Dynamic Island Settings"
+              id="btn-clock-open-settings"
+            >
+              <Sliders className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
 
       </div>
     </div>
